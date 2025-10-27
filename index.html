@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Inter Font -->
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=100..900&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
         /* Custom scrollbar for better look */
         ::-webkit-scrollbar { width: 8px; }
@@ -160,6 +160,12 @@
         }
 
         async function initFirebase() {
+            // SAFETY CHECK: Ensure the firebaseConfig object is not empty before trying to initialize.
+            if (Object.keys(firebaseConfig).length === 0) {
+                console.error("Firebase configuration is missing. Cannot connect to database for persistence.");
+                return; 
+            }
+            
             try {
                 // setLogLevel('Debug'); // Enable for debugging
                 app = firebase.initializeApp(firebaseConfig);
