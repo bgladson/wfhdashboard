@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WFM Productivity Dashboard</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter Font -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght=100..900&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
@@ -17,7 +15,6 @@
         ::-webkit-scrollbar-thumb:hover { background: #64748b; }
         .log-entry:hover .delete-btn { opacity: 1; }
     </style>
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -33,7 +30,6 @@
 </head>
 <body class="min-h-screen flex flex-col antialiased">
 
-    <!-- Header: Timer & Controls (Fixed Top Right) -->
     <header id="header" class="fixed top-0 right-0 p-4 z-40 w-full sm:w-auto transition-all duration-300">
         <div id="timer-display-container" class="hidden bg-white shadow-xl rounded-lg p-3 flex items-center space-x-3 border border-indigo-100">
             <span class="text-xs font-semibold text-indigo-500 uppercase">Remaining:</span>
@@ -42,10 +38,8 @@
         <button id="toggle-log-btn" onclick="toggleView()" class="hidden mt-2 px-3 py-1 bg-indigo-500 text-white text-sm font-medium rounded-full shadow-md hover:bg-indigo-600 transition duration-150">View Log</button>
     </header>
 
-    <!-- Main Content Area -->
     <main class="flex-grow p-4 sm:p-8 pt-20">
 
-        <!-- Initial Setup Modal (Large Button Pop-up) -->
         <div id="setup-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
             <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-lg mx-4">
                 <h2 class="text-2xl font-bold mb-6 text-indigo-700">Start Your Workday</h2>
@@ -59,9 +53,7 @@
             </div>
         </div>
 
-        <!-- Task Dashboard View -->
         <div id="dashboard-view" class="max-w-4xl mx-auto space-y-8 hidden">
-            <!-- Workday Controls -->
             <section class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
                 <h3 class="text-xl font-semibold text-gray-800 mb-4">Timer Controls</h3>
                 <div class="flex flex-wrap gap-3">
@@ -72,7 +64,6 @@
                 </div>
             </section>
 
-            <!-- Task Input -->
             <section class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
                 <h3 class="text-xl font-semibold text-gray-800 mb-4">What would you like to accomplish today?</h3>
                 <div class="flex space-x-3">
@@ -81,22 +72,18 @@
                 </div>
             </section>
 
-            <!-- Task List -->
             <section class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 min-h-[200px]">
                 <h3 class="text-xl font-semibold text-gray-800 mb-4">To Do List</h3>
                 <ul id="task-list" class="space-y-3">
-                    <!-- Tasks will be injected here -->
                     <p id="tasks-empty-state" class="text-gray-500 italic">No tasks yet. Add one above!</p>
                 </ul>
             </section>
         </div>
 
-        <!-- Activity Log View -->
         <div id="log-view" class="max-w-4xl mx-auto space-y-8 hidden">
             <h2 class="text-3xl font-bold text-indigo-700">Workday Activity Log</h2>
             <p class="text-gray-600">Review your 30-minute check-ins throughout the day.</p>
             <div id="log-entries-container" class="space-y-4">
-                <!-- Log entries will be injected here -->
                 <p id="log-empty-state" class="text-gray-500 italic p-4 bg-white rounded-lg shadow">No check-in entries yet.</p>
             </div>
             <button onclick="toggleView()" class="px-4 py-2 bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-600 transition duration-150">Back to Dashboard</button>
@@ -104,7 +91,6 @@
 
     </main>
 
-    <!-- 30-Minute Check-in Modal -->
     <div id="checkin-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 hidden">
         <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md mx-4 transform transition-all duration-300 scale-100">
             <h2 class="text-2xl font-bold mb-4 text-indigo-700">Time to Check-In!</h2>
@@ -116,7 +102,6 @@
         </div>
     </div>
 
-    <!-- General Confirmation Modal (Used for End Workday) -->
     <div id="confirmation-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-[60] hidden">
         <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm mx-4">
             <h3 class="text-xl font-bold mb-4 text-red-600">Confirm Action</h3>
@@ -139,6 +124,11 @@
         let app, db, auth, userId = null;
         let unsubscribeTasks = () => {};
         let unsubscribeLogs = () => {};
+        let isFirebaseReady = false; // New flag for Firebase status
+
+        // Local state used when Firebase is unavailable (non-persistent)
+        let localTasks = [];
+        let localLogs = [];
 
         // Global state for the app
         let checkinInterval;
@@ -160,10 +150,15 @@
         }
 
         async function initFirebase() {
-            // SAFETY CHECK: Ensure the firebaseConfig object is not empty before trying to initialize.
+            // SAFETY CHECK: If the firebaseConfig object is empty, assume non-persistent mode.
             if (Object.keys(firebaseConfig).length === 0) {
-                console.error("Firebase configuration is missing. Cannot connect to database for persistence.");
-                return; 
+                console.error("Firebase configuration is missing. Running in LOCAL (non-persistent) mode.");
+                isFirebaseReady = false;
+                // Since we can't load state, we immediately show the setup modal.
+                document.getElementById('setup-modal').classList.remove('hidden');
+                renderTasks(localTasks);
+                renderLogEntries(localLogs);
+                return;
             }
             
             try {
@@ -181,16 +176,21 @@
                 firebase.onAuthStateChanged(auth, (user) => {
                     if (user) {
                         userId = user.uid;
+                        isFirebaseReady = true; // Firebase is ready!
                         console.log("User authenticated. ID:", userId);
                         loadInitialWorkdayState();
                         setupRealtimeListeners();
                     } else {
-                        console.error("Authentication failed.");
+                        console.error("Authentication failed. Running in LOCAL (non-persistent) mode.");
+                        isFirebaseReady = false;
+                        document.getElementById('setup-modal').classList.remove('hidden');
                     }
                 });
 
             } catch (error) {
                 console.error("Firebase initialization failed:", error);
+                isFirebaseReady = false;
+                document.getElementById('setup-modal').classList.remove('hidden');
             }
         }
 
@@ -198,7 +198,7 @@
 
         async function loadInitialWorkdayState() {
             const docRef = getTaskDocRef();
-            if (!docRef) return;
+            if (!docRef || !isFirebaseReady) return;
 
             try {
                 const docSnap = await firebase.getDoc(docRef);
@@ -222,25 +222,33 @@
                     } else {
                         // Workday has ended or was reset
                         console.log("No active workday found or workday is over.");
+                        document.getElementById('setup-modal').classList.remove('hidden');
                     }
+                } else {
+                     document.getElementById('setup-modal').classList.remove('hidden');
                 }
             } catch (e) {
                 console.error("Error loading workday state:", e);
+                 document.getElementById('setup-modal').classList.remove('hidden');
             }
         }
 
         function setupRealtimeListeners() {
+            if (!isFirebaseReady) return;
+
             // Task Listener (Reads from workday_state/current)
             const docRef = getTaskDocRef();
             if (docRef) {
                 unsubscribeTasks = firebase.onSnapshot(docRef, (doc) => {
                     if (doc.exists()) {
                         const data = doc.data();
-                        renderTasks(data.tasks || []);
+                        localTasks = data.tasks || []; // Sync local state
+                        renderTasks(localTasks);
                         // Update local endTime if it changed (e.g., pause extension)
                         endTime = data.endTime;
                     } else {
-                        renderTasks([]); // Clear tasks if document is deleted
+                        localTasks = [];
+                        renderTasks(localTasks); // Clear tasks if document is deleted
                     }
                 }, (error) => {
                     console.error("Error listening to task data:", error);
@@ -256,7 +264,8 @@
                     snapshot.forEach(doc => {
                         logs.push({ id: doc.id, ...doc.data() });
                     });
-                    renderLogEntries(logs);
+                    localLogs = logs; // Sync local state
+                    renderLogEntries(localLogs);
                 }, (error) => {
                     console.error("Error listening to log data:", error);
                 });
@@ -268,7 +277,10 @@
         window.startWorkday = function() {
             const hours = parseInt(document.getElementById('work-hours').value);
             if (hours <= 0 || isNaN(hours)) {
-                alert("Please enter a valid number of hours.");
+                // Use a non-alert method for feedback
+                const input = document.getElementById('work-hours');
+                input.style.borderColor = 'red';
+                setTimeout(() => input.style.borderColor = '', 2000);
                 return;
             }
 
@@ -280,16 +292,19 @@
             document.getElementById('timer-display-container').classList.remove('hidden');
             document.getElementById('toggle-log-btn').classList.remove('hidden');
 
-            // Save initial state to Firestore
-            const taskDocRef = getTaskDocRef();
-            if (taskDocRef) {
-                firebase.setDoc(taskDocRef, {
-                    endTime: endTime,
-                    workDurationMs: workDurationMs,
-                    lastCheckinTime: Date.now(),
-                    tasks: [],
-                }, { merge: true }).catch(e => console.error("Error setting initial workday state:", e));
+            // Save initial state to Firestore IF ready
+            if (isFirebaseReady) {
+                const taskDocRef = getTaskDocRef();
+                if (taskDocRef) {
+                    firebase.setDoc(taskDocRef, {
+                        endTime: endTime,
+                        workDurationMs: workDurationMs,
+                        lastCheckinTime: Date.now(),
+                        tasks: localTasks, // Use the (empty) local array
+                    }, { merge: true }).catch(e => console.error("Error setting initial workday state:", e));
+                }
             }
+
 
             startTimer();
             setupNextCheckin(Date.now());
@@ -331,12 +346,14 @@
             endTime += extensionMs;
             startTimer(); // Restart to update the countdown immediately
 
-            // Save new end time to Firestore
-            const taskDocRef = getTaskDocRef();
-            if (taskDocRef) {
-                await firebase.updateDoc(taskDocRef, {
-                    endTime: endTime
-                }).catch(e => console.error("Error updating timer end time:", e));
+            // Save new end time to Firestore IF ready
+            if (isFirebaseReady) {
+                const taskDocRef = getTaskDocRef();
+                if (taskDocRef) {
+                    await firebase.updateDoc(taskDocRef, {
+                        endTime: endTime
+                    }).catch(e => console.error("Error updating timer end time:", e));
+                }
             }
         }
 
@@ -386,30 +403,40 @@
         window.submitCheckin = async function() {
             const activity = document.getElementById('checkin-input').value.trim();
             if (!activity) {
-                // Use custom message box instead of alert
                 console.warn("Check-in activity cannot be empty.");
                 document.getElementById('checkin-modal').classList.add('hidden');
                 return;
             }
 
-            const logsRef = getLogsCollectionRef();
-            if (logsRef) {
-                await firebase.addDoc(logsRef, {
-                    timestamp: firebase.serverTimestamp(),
-                    activity: activity
-                }).catch(e => console.error("Error saving check-in log:", e));
+            const newLogEntry = {
+                id: Date.now().toString(), // local ID
+                activity: activity,
+                timestamp: { toDate: () => new Date() } // Mock Date object for local rendering
+            };
+            
+            // Update local state and render
+            localLogs.unshift(newLogEntry);
+            renderLogEntries(localLogs);
 
-                // Update the last check-in time in the state document
+            // Save to Firestore IF ready
+            if (isFirebaseReady) {
+                const logsRef = getLogsCollectionRef();
                 const taskDocRef = getTaskDocRef();
-                if (taskDocRef) {
-                     await firebase.updateDoc(taskDocRef, {
+                if (logsRef && taskDocRef) {
+                    await firebase.addDoc(logsRef, {
+                        timestamp: firebase.serverTimestamp(),
+                        activity: activity
+                    }).catch(e => console.error("Error saving check-in log:", e));
+
+                    await firebase.updateDoc(taskDocRef, {
                         lastCheckinTime: Date.now()
                     }).catch(e => console.error("Error updating last check-in time:", e));
                 }
-
-                document.getElementById('checkin-input').value = '';
-                document.getElementById('checkin-modal').classList.add('hidden');
             }
+
+
+            document.getElementById('checkin-input').value = '';
+            document.getElementById('checkin-modal').classList.add('hidden');
         }
 
         window.confirmReset = function() {
@@ -419,14 +446,23 @@
         window.resetWorkday = function() {
             clearInterval(timerInterval);
             clearInterval(checkinInterval);
-            unsubscribeTasks();
-            unsubscribeLogs();
+            
+            if (isFirebaseReady) {
+                unsubscribeTasks();
+                unsubscribeLogs();
 
-            // Clear state document (or mark as ended)
-            const docRef = getTaskDocRef();
-            if (docRef) {
-                firebase.deleteDoc(docRef).catch(e => console.error("Error deleting workday state:", e));
+                // Clear state document (or mark as ended)
+                const docRef = getTaskDocRef();
+                if (docRef) {
+                    firebase.deleteDoc(docRef).catch(e => console.error("Error deleting workday state:", e));
+                }
             }
+
+            // Clear local state
+            localTasks = [];
+            localLogs = [];
+            renderTasks(localTasks);
+            renderLogEntries(localLogs);
 
             // Reset UI
             document.getElementById('timer-display').textContent = '00:00:00';
@@ -494,52 +530,52 @@
 
             if (!text) return;
 
-            const docRef = getTaskDocRef();
-            if (docRef) {
-                const docSnap = await firebase.getDoc(docRef);
-                const currentTasks = docSnap.exists() ? (docSnap.data().tasks || []) : [];
+            const newTask = {
+                text: text,
+                completed: false,
+                timestamp: Date.now() 
+            };
+            
+            // Add locally
+            localTasks.push(newTask);
+            renderTasks(localTasks);
+            input.value = '';
 
-                const newTask = {
-                    text: text,
-                    completed: false,
-                    timestamp: Date.now() // Use timestamp for sorting/identification
-                };
-
-                currentTasks.push(newTask);
-
-                await firebase.updateDoc(docRef, { tasks: currentTasks })
-                    .then(() => input.value = '')
-                    .catch(e => console.error("Error adding task:", e));
+            // Save to Firestore IF ready
+            if (isFirebaseReady) {
+                const docRef = getTaskDocRef();
+                if (docRef) {
+                    await updateTaskArrayInFirestore(localTasks);
+                }
             }
         }
 
-        async function updateTaskArray(callback) {
-            const docRef = getTaskDocRef();
-            if (docRef) {
-                const docSnap = await firebase.getDoc(docRef);
-                if (docSnap.exists()) {
-                    let tasks = docSnap.data().tasks || [];
-                    tasks = callback(tasks);
-                    await firebase.updateDoc(docRef, { tasks: tasks })
-                        .catch(e => console.error("Error updating tasks array:", e));
-                }
-            }
+        async function updateTaskArrayInFirestore(tasks) {
+             const docRef = getTaskDocRef();
+             if (docRef) {
+                 await firebase.updateDoc(docRef, { tasks: tasks })
+                     .catch(e => console.error("Error updating tasks array:", e));
+             }
         }
 
         window.toggleTask = function(index) {
-            updateTaskArray((tasks) => {
-                if (tasks[index]) {
-                    tasks[index].completed = !tasks[index].completed;
+            if (localTasks[index]) {
+                localTasks[index].completed = !localTasks[index].completed;
+                renderTasks(localTasks);
+                
+                if (isFirebaseReady) {
+                    updateTaskArrayInFirestore(localTasks);
                 }
-                return tasks;
-            });
+            }
         }
 
         window.deleteTask = function(index) {
-             updateTaskArray((tasks) => {
-                tasks.splice(index, 1);
-                return tasks;
-            });
+             localTasks.splice(index, 1);
+             renderTasks(localTasks);
+
+             if (isFirebaseReady) {
+                 updateTaskArrayInFirestore(localTasks);
+             }
         }
 
 
@@ -565,29 +601,43 @@
             }
 
             logs.forEach(log => {
-                const date = log.timestamp ? log.timestamp.toDate() : new Date();
+                // Check if timestamp is a mock object (local) or a Firestore Timestamp
+                const date = log.timestamp && log.timestamp.toDate ? log.timestamp.toDate() : new Date();
                 const timeString = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
                 const div = document.createElement('div');
                 div.className = 'log-entry bg-white p-4 rounded-lg shadow-md border-l-4 border-indigo-500 relative flex justify-between items-start';
+                
+                // Only show delete button if Firebase is ready and the log entry has an ID (i.e. is persisted or has a local ID)
+                const deleteButton = isFirebaseReady || log.id 
+                    ? `<button onclick="deleteLog('${log.id}')" class="delete-btn text-gray-400 hover:text-red-600 ml-4 p-1 rounded-full opacity-0 transition-opacity">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3"></path></svg>
+                        </button>`
+                    : '';
+
                 div.innerHTML = `
                     <div>
                         <p class="text-sm font-semibold text-indigo-700 mb-1">${timeString} Check-in:</p>
                         <p class="text-gray-800 whitespace-pre-wrap">${log.activity}</p>
                     </div>
-                    <button onclick="deleteLog('${log.id}')" class="delete-btn text-gray-400 hover:text-red-600 ml-4 p-1 rounded-full opacity-0 transition-opacity">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3"></path></svg>
-                    </button>
+                    ${deleteButton}
                 `;
                 container.appendChild(div);
             });
         }
 
         window.deleteLog = async function(logId) {
-            const logsRef = getLogsCollectionRef();
-            if (logsRef) {
-                const docRef = firebase.doc(logsRef, logId);
-                await firebase.deleteDoc(docRef).catch(e => console.error("Error deleting log entry:", e));
+            // Delete locally
+            localLogs = localLogs.filter(log => log.id !== logId);
+            renderLogEntries(localLogs);
+
+            // Delete from Firestore IF ready
+            if (isFirebaseReady) {
+                const logsRef = getLogsCollectionRef();
+                if (logsRef) {
+                    const docRef = firebase.doc(logsRef, logId);
+                    await firebase.deleteDoc(docRef).catch(e => console.error("Error deleting log entry:", e));
+                }
             }
         }
 
